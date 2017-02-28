@@ -10,4 +10,12 @@ public class App
     {
         System.out.println( "Hello World!" );
     }
+    
+    public static void test(){
+      System.out.println( "Hello World!" );
+    }
+    
+    public static void test1(){
+      System.out.println( "Hello World!" );
+    }
 }
