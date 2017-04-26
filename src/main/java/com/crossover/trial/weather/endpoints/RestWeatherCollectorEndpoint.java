@@ -158,4 +158,14 @@ public class RestWeatherCollectorEndpoint implements WeatherCollectorEndpoint {
 		System.exit(0);
 		return Response.noContent().build();
 	}
+	
+	/**
+     * A liveliness check for the collection endpoint.
+     *
+     * @return 1 if the endpoint is alive functioning, 0 otherwise
+     */
+    @Override
+    public Response testReviewRework() {
+        return Response.status(Response.Status.OK).entity("testReviewRework").build();
+    }
 }

@@ -97,4 +97,8 @@ public interface WeatherCollectorEndpoint {
     @GET
     @Path("/testcoverage")
     public Response testCoverage();
+    
+    @GET
+    @Path("/rework")
+    public Response testReviewRework();
 }
