@@ -22,7 +22,6 @@ import com.crossover.trial.weather.utils.Constants;
  */
 public class WeatherClient {
 
-	/** end point for read queries */
 	private WebTarget query;
 
 	/** end point to supply updates */
@@ -33,11 +32,15 @@ public class WeatherClient {
 		query = client.target(Constants.QUERY_ENDPOINT);
 		collect = client.target(Constants.COLLECT_ENDPOINT);
 	}
-
-	/**
-	 * Test Ping.
-	 */
+	
 	public void pingCollect() {
+		WebTarget path = collect.path("/ping");
+		Response response = path.request().get();
+		System.out.print("collect.ping: " + response.readEntity(String.class)
+				+ "\n");
+	}
+	
+	public void pingWebservice() {
 		WebTarget path = collect.path("/ping");
 		Response response = path.request().get();
 		System.out.print("collect.ping: " + response.readEntity(String.class)
