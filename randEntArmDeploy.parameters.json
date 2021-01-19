@@ -1,0 +1,39 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "vmName": {
+            "value": "vm"
+        },
+        "adminUsername": {
+            "value": "randent"
+        },
+        "adminPassword": {
+            "value": "@Admin123456"
+        },
+        "adminSSHKey": {
+            "value": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4ei51CUbN0d7neF/2BMbvyrxFdM+PtTfNutH0BsMf9T8iFYYqhw5CIss2cR7bUucxPW67vT9C7KY8MssN0DbxmewSs3E0jVuuStgHlK7siESdqHDLpct0h/BbH/opYzCnBk0dbpGaxdJkcfbUHBXdCStk9mg1EpEkZYx4XT4FUIy5zEheXXUeIgZS5zvZNIBT4PSJv1TJH2SljOSfqlRfUjIoSNut64W3y7Ad+lhfYInFdhA2+5Ovuoda3DgRTCzfv9ZC0RnxLHeJODkt6e+cx0Gw4zBVbtY8XaKPLLTVigptG9gUkC3z06ErbQRLm98GcykCSjscS8K+RFkCLG/P JUNED KHAN@DESKTOP-VAEKTEM"
+        },
+        "commandToExecute": {
+            "value": "sudo /var/lib/waagent/custom-script/download/0/testscript.sh"
+        },
+        "vNetName": {
+            "value": "vnet"
+        },
+        "vNetSubnetName": {
+            "value": "subnet"
+        },
+        "vmStorageName": {
+            "value": "st"
+        },
+        "artifactsLocation": {
+            "value": "https://raw.githubusercontent.com/juned3you/TestProject/master/testscript.sh"
+        },
+        "cdnProfileName": {
+            "value": "cdn"
+        },
+        "vmStorageContainerName": {
+            "value": "images"
+        }
+    }
+}

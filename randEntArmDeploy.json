@@ -1,0 +1,419 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "vmName": {
+            "type": "string",
+            "metadata": {
+                "description": "Specifies a Virtual Machine name."
+            }
+        },
+        "adminUsername": {
+            "type": "string",
+            "metadata": {
+                "description": "Specifies a username for the Virtual Machine."
+            }
+        },
+        "adminPassword": {
+            "type": "string",
+            "metadata": {
+                "description": "Specifies a password for the Virtual Machine."
+            }
+        },
+        "adminSSHKey": {
+            "type": "string",
+            "metadata": {
+                "description": "Specifies the SSH Key."
+            }
+        },
+        "commandToExecute": {
+            "type": "string",
+            "metadata": {
+                "description": "CommandToExecute on shell."
+            }
+        },
+        "vNetName": {
+            "type": "string",
+            "metadata": {
+                "description": "Virtual network name."
+            }
+        },
+        "vNetSubnetName": {
+            "type": "string",
+            "metadata": {
+                "description": "Subnet name."
+            }
+        },
+        "vmStorageName": {
+            "type": "string",
+            "metadata": {
+                "description": "Storage name."
+            }
+        },
+        "artifactsLocation": {
+            "type": "string",
+            "metadata": {
+                "description": "Artifact location."
+            }
+        },
+        "cdnProfileName": {
+            "type": "string",
+            "metadata": {
+                "description": "CDN Profile name"
+            }
+        },
+        "vmStorageContainerName": {
+            "type": "string",
+            "metadata": {
+                "description": "Storage container name."
+            }
+        }
+    },
+    "functions": [],
+    "variables": {
+        "uniqueId": "[uniqueString(resourceGroup().id)]",
+        "vNetName": "[concat(parameters('vNetName'), variables('uniqueId'))]",
+        "vNetSubnetName": "[concat(parameters('vNetSubnetName'), variables('uniqueId'))]",
+        "vmStorageName": "[concat(parameters('vmStorageName'), variables('uniqueId'))]",
+        "vmName": "[concat(parameters('vmName'), variables('uniqueId'))]",
+        "adminUserName": "[parameters('adminUsername')]",
+        "adminPassword": "[parameters('adminPassword')]",
+        "adminSSHKey": "[parameters('adminSSHKey')]",
+        "sshKeyPath": "[concat('/home/', parameters('adminUsername'), '/.ssh/authorized_keys')]",
+        "publicIPAddressName": "[concat(variables('vmName'), '-ip')]",
+        "networkInterfaceName": "[concat(variables('vmName'), '-nt')]",
+        "networkSecurityGroupName": "[concat(variables('vmName'), '-nsg')]",
+        "osDiskName": "[concat(variables('vmName'), '-dsk')]",
+        "vmExtensionName": "[concat(variables('vmName'),'/installcustomscript')]",
+        "artifactsLocation": "[parameters('artifactsLocation')]",
+        "cdnProfileName": "[concat(parameters('cdnProfileName'), variables('uniqueId'))]",
+        "cdnEndpointName": "[variables('vmName')]",
+        "vmStorageContainerName": "[parameters('vmStorageContainerName')]"
+    },
+    "resources": [
+        {
+            "name": "[variables('vNetName')]",
+            "type": "Microsoft.Network/virtualNetworks",
+            "apiVersion": "2019-11-01",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "[variables('vNetName')]"
+            },
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "10.0.0.0/16"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('vNetSubnetName')]",
+                        "properties": {
+                            "addressPrefix": "10.0.0.0/24"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "[variables('vmStorageName')]",
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2019-06-01",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "[variables('vmStorageName')]"
+            },
+            "sku": {
+                "name": "Standard_LRS"
+            },
+            "kind": "Storage",
+            "properties": {
+                "minimumTlsVersion": "TLS1_2",
+                "allowBlobPublicAccess": true,
+                "networkAcls": {
+                    "bypass": "AzureServices",
+                    "virtualNetworkRules": [],
+                    "ipRules": [],
+                    "defaultAction": "Allow"
+                },
+                "supportsHttpsTrafficOnly": true,
+                "encryption": {
+                    "services": {
+                        "file": {
+                            "keyType": "Account",
+                            "enabled": true
+                        },
+                        "blob": {
+                            "keyType": "Account",
+                            "enabled": true
+                        }
+                    },
+                    "keySource": "Microsoft.Storage"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/blobServices",
+            "apiVersion": "2019-06-01",
+            "name": "[concat(variables('vmStorageName'), '/default')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('vmStorageName'))]"
+            ],
+            "sku": {
+                "name": "Standard_RAGRS",
+                "tier": "Standard"
+            },
+            "properties": {
+                "cors": {
+                    "corsRules": []
+                },
+                "deleteRetentionPolicy": {
+                    "enabled": false
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+            "apiVersion": "2020-08-01-preview",
+            "name": "[concat(variables('vmStorageName'), '/default/', variables('vmStorageContainerName'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('vmStorageName'), 'default')]",
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('vmStorageName'))]"
+            ],
+            "properties": {
+                "defaultEncryptionScope": "$account-encryption-key",
+                "denyEncryptionScopeOverride": false,
+                "publicAccess": "Blob"
+            }
+        },
+        {
+            "name": "[variables('cdnProfileName')]",
+            "type": "Microsoft.Cdn/profiles",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2020-04-15",
+            "tags": {
+                "displayName": "[variables('cdnProfileName')]"
+            },
+            "sku": {
+                "name": "Standard_Akamai"
+            },
+            "properties": {},
+            "resources": [
+                {
+                    "apiVersion": "2016-04-02",
+                    "name": "[variables('cdnEndpointName')]",
+                    "type": "endpoints",
+                    "dependsOn": [
+                        "[variables('cdnProfileName')]",
+                        "[variables('vmStorageName')]"
+                    ],
+                    "location": "[resourceGroup().location]",
+                    "tags": {
+                        "displayName": "[variables('cdnEndpointName')]"
+                    },
+                    "properties": {
+                        "originHostHeader": "[replace(replace(reference(variables('vmStorageName')).primaryEndpoints.blob,'https://',''),'/','')]",
+                        "isHttpAllowed": true,
+                        "isHttpsAllowed": true,
+                        "queryStringCachingBehavior": "IgnoreQueryString",
+                        "contentTypesToCompress": [
+                            "text/plain",
+                            "text/html",
+                            "text/css",
+                            "application/x-javascript",
+                            "text/javascript"
+                        ],
+                        "isCompressionEnabled": true,
+                        "origins": [
+                            {
+                                "name": "origin1",
+                                "properties": {
+                                    "hostName": "[replace(replace(reference(variables('vmStorageName')).primaryEndpoints.blob,'https://',''),'/','')]"
+                                }
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+        {
+            "name": "[variables('publicIPAddressName')]",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "apiVersion": "2019-11-01",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "[variables('publicIPAddressName')]"
+            },
+            "properties": {
+                "publicIPAllocationMethod": "Dynamic",
+                "dnsSettings": {
+                    "domainNameLabel": "[variables('vmName')]"
+                }
+            }
+        },
+        {
+            "name": "[variables('networkSecurityGroupName')]",
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "apiVersion": "2018-08-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "ssh",
+                        "properties": {
+                            "description": "description",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 100,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "http",
+                        "properties": {
+                            "description": "description",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "80",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 101,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "https",
+                        "properties": {
+                            "description": "description",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "443",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 102,
+                            "direction": "Inbound"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "[variables('networkInterfaceName')]",
+            "type": "Microsoft.Network/networkInterfaces",
+            "apiVersion": "2019-11-01",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPAddressName'))]",
+                "[resourceId('Microsoft.Network/virtualNetworks', variables('vNetName'))]"
+            ],
+            "tags": {
+                "displayName": "[variables('networkInterfaceName')]"
+            },
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipConfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPAddressName'))]"
+                            },
+                            "subnet": {
+                                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vNetName'), variables('vNetSubnetName'))]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "[variables('vmName')]",
+            "type": "Microsoft.Compute/virtualMachines",
+            "apiVersion": "2019-07-01",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkInterfaces', variables('networkInterfaceName'))]"
+            ],
+            "tags": {
+                "displayName": "[variables('vmName')]"
+            },
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "Standard_D2s_v3"
+                },
+                "osProfile": {
+                    "computerName": "[variables('vmName')]",
+                    "adminUsername": "[variables('adminUserName')]",
+                    "adminPassword": "[variables('adminPassword')]",
+                    "linuxConfiguration": {
+                        "ssh": {
+                            "publicKeys": [
+                                {
+                                    "path": "[variables('sshKeyPath')]",
+                                    "keyData": "[variables('adminSSHKey')]"
+                                }
+                            ]
+                        }
+                    }
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "Canonical",
+                        "offer": "UbuntuServer",
+                        "sku": "18.04-LTS",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "[variables('osDiskName')]",
+                        "caching": "ReadWrite",
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('networkInterfaceName'))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": true,
+                        "storageUri": "[reference(resourceId('Microsoft.Storage/storageAccounts/', variables('vmStorageName'))).primaryEndpoints.blob]"
+                    }
+                }
+            }
+        },
+
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[variables('vmExtensionName')]",
+            "apiVersion": "2019-07-01",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('vmName'))]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.Azure.Extensions",
+                "type": "CustomScript",
+                "typeHandlerVersion": "2.0",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "fileUris": [
+                        "[variables('artifactsLocation')]"
+                    ],
+                    "commandToExecute": "[concat(parameters('commandToExecute'), ' ', variables('vmName'), ' ', variables('vmStorageContainerName'))]"
+                }
+            }
+        }
+
+
+    ],
+    "outputs": {}
+}
